@@ -1230,6 +1230,7 @@ async function updateListCounts() {
 // ══════════════════════════════════════════════════════
 let acHighlight = -1;
 function handleAutocomplete() {
+  if (typeof PRODUCT_FLAT === 'undefined') return;
   const input = document.getElementById('new-item-name');
   const list = document.getElementById('autocomplete-list');
   const q = input.value.trim().toLowerCase();
@@ -1290,9 +1291,13 @@ document.addEventListener('keydown', (e) => {
 // ══════════════════════════════════════════════════════
 //  CATALOG BROWSER
 // ══════════════════════════════════════════════════════
-let catalogActiveCat = Object.keys(PRODUCT_CATALOG)[0];
+let catalogActiveCat = (typeof PRODUCT_CATALOG !== 'undefined') ? Object.keys(PRODUCT_CATALOG)[0] : null;
 
 function openCatalog() {
+  if (typeof PRODUCT_CATALOG === 'undefined') {
+    toast('❌ catalog.js non chargé — vérifie qu\'il est bien uploadé sur GitHub');
+    return;
+  }
   document.getElementById('catalog-search').value = '';
   buildCatalogCats();
   catalogActiveCat = Object.keys(PRODUCT_CATALOG)[0];
