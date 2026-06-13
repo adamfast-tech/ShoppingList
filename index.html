@@ -8,6 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="catalog.js"></script>
 <style>
   /* ─── TOKENS ─────────────────────────────────────────── */
   :root {
@@ -26,6 +27,44 @@
     --shadow: 0 4px 24px rgba(0,0,0,.08);
     --shadow-pop: 0 8px 32px rgba(255,107,107,.25);
   }
+
+  body.dark {
+    --bg: #14121F;
+    --card: #1F1B2E;
+    --text: #F3F1FA;
+    --muted: #9CA3AF;
+    --border: #332E47;
+    --shadow: 0 4px 24px rgba(0,0,0,.4);
+  }
+  body.dark .auth-card { background: var(--card); }
+  body.dark .form-group input,
+  body.dark .add-item-input,
+  body.dark .add-item-qty,
+  body.dark .share-input,
+  body.dark .btn-scan,
+  body.dark .btn-cancel,
+  body.dark .icon-btn,
+  body.dark .cat-chip,
+  body.dark .modal,
+  body.dark select.share-input {
+    background: var(--card);
+    border-color: var(--border);
+    color: var(--text);
+  }
+  body.dark .app-header,
+  body.dark .bottom-nav,
+  body.dark .list-card,
+  body.dark .item-row,
+  body.dark .share-card,
+  body.dark .profile-hero,
+  body.dark .profile-section,
+  body.dark .collab-row,
+  body.dark .item-delete,
+  body.dark .stat-box {
+    background: var(--card);
+  }
+  body.dark .btn-logout { background: var(--card); }
+  body.dark .emoji-option { background: var(--card); border-color: var(--border); }
 
   /* ─── RESET ───────────────────────────────────────────── */
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -303,6 +342,57 @@
     transition: all .2s; flex-shrink: 0;
   }
   .btn-scan:hover { border-color: var(--g7); background: #F5F3FF; }
+
+  /* AUTOCOMPLETE */
+  .autocomplete-list {
+    position: absolute; top: calc(100% + 6px); left: 0; right: 0;
+    background: var(--card); border: 2px solid var(--border); border-radius: var(--radius-sm);
+    box-shadow: 0 8px 24px rgba(0,0,0,.12); max-height: 280px; overflow-y: auto;
+    z-index: 50; display: none;
+  }
+  .autocomplete-list.open { display: block; }
+  .autocomplete-item {
+    padding: 12px 16px; cursor: pointer; font-size: 14px;
+    display: flex; align-items: center; gap: 10px; transition: background .1s;
+    border-bottom: 1px solid var(--border);
+  }
+  .autocomplete-item:last-child { border-bottom: none; }
+  .autocomplete-item:hover, .autocomplete-item.highlighted { background: var(--bg); }
+  .autocomplete-item .ac-cat-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .autocomplete-item .ac-cat { font-size: 11px; color: var(--muted); margin-left: auto; }
+
+  /* CATALOG MODAL */
+  .catalog-modal .modal { max-width: 600px; }
+  .catalog-search {
+    width: 100%; padding: 12px 16px; margin-bottom: 16px;
+    border: 2px solid var(--border); border-radius: var(--radius-sm);
+    font-family: 'Space Grotesk', sans-serif; font-size: 15px;
+    background: var(--bg); color: var(--text); outline: none;
+  }
+  .catalog-cats { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; margin-bottom: 16px; scrollbar-width: none; }
+  .catalog-cats::-webkit-scrollbar { display: none; }
+  .catalog-cat-btn {
+    white-space: nowrap; padding: 10px 16px; border-radius: var(--radius-sm);
+    border: 2px solid var(--border); background: var(--card); cursor: pointer;
+    font-size: 13px; font-weight: 700; transition: all .15s; color: var(--text);
+    display: flex; align-items: center; gap: 6px; flex-shrink: 0;
+  }
+  .catalog-cat-btn.active { border-color: transparent; color: white; }
+  .catalog-products-grid {
+    display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px;
+    max-height: 380px; overflow-y: auto; padding-right: 4px;
+  }
+  .catalog-product-btn {
+    padding: 12px 14px; border-radius: var(--radius-sm);
+    border: 2px solid var(--border); background: var(--bg); cursor: pointer;
+    font-size: 13px; font-weight: 600; text-align: left; transition: all .15s;
+    color: var(--text); display: flex; align-items: center; justify-content: space-between; gap: 6px;
+  }
+  .catalog-product-btn:hover { border-color: var(--g1); background: #FFF5F5; transform: translateY(-1px); }
+  .catalog-product-btn .add-icon { color: var(--g4); font-weight: 900; font-size: 16px; flex-shrink: 0; }
+  .catalog-product-btn.added { opacity: .5; }
+  .catalog-product-btn.added .add-icon { color: var(--g1); }
+  body.dark .catalog-product-btn:hover { background: #2a2238; }
   .btn-confirm {
     width: 52px; height: 52px; border-radius: var(--radius-sm);
     border: none; background: var(--grad-cool);
@@ -628,8 +718,12 @@
         </div>
       </div>
       <div class="add-item-row">
-        <input type="text" class="add-item-input" id="new-item-name" placeholder="Ajouter un article…" onkeydown="if(event.key==='Enter')addItem()">
+        <div class="add-item-input-wrap" style="position:relative;flex:1">
+          <input type="text" class="add-item-input" id="new-item-name" placeholder="Ajouter un article…" autocomplete="off" oninput="handleAutocomplete()" onkeydown="if(event.key==='Enter')addItem()" style="width:100%">
+          <div id="autocomplete-list" class="autocomplete-list"></div>
+        </div>
         <input type="number" class="add-item-qty" id="new-item-qty" value="1" min="1">
+        <button class="btn-scan" onclick="openCatalog()" title="Parcourir le catalogue">🗂️</button>
         <button class="btn-scan" onclick="openScanner()" title="Scanner un code-barre">📷</button>
         <button class="btn-confirm" onclick="addItem()">✓</button>
       </div>
@@ -748,6 +842,19 @@
     <div class="modal-actions">
       <button class="btn-cancel" onclick="closeModalById('modal-newlist')">Annuler</button>
       <button class="btn-ok" onclick="createList()">Créer 🎉</button>
+    </div>
+  </div>
+</div>
+
+<!-- CATALOG MODAL -->
+<div class="modal-overlay catalog-modal" id="modal-catalog" onclick="closeModal(event, 'modal-catalog')">
+  <div class="modal">
+    <div class="modal-title">Catalogue 🗂️</div>
+    <input type="text" class="catalog-search" id="catalog-search" placeholder="Rechercher un produit…" oninput="renderCatalogProducts()">
+    <div class="catalog-cats" id="catalog-cats"></div>
+    <div class="catalog-products-grid" id="catalog-products"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModalById('modal-catalog')">Fermer</button>
     </div>
   </div>
 </div>
@@ -877,6 +984,7 @@ async function logout() {
 async function initApp() {
   document.getElementById('auth-screen').style.display = 'none';
   document.getElementById('app-screen').style.display = 'flex';
+  document.querySelector('#app-screen .icon-btn').textContent = document.body.classList.contains('dark') ? '☀️' : '🌙';
   const meta = currentUser.user_metadata || {};
   const name = meta.full_name || currentUser.email.split('@')[0];
   const initial = name[0].toUpperCase();
@@ -1049,10 +1157,11 @@ function catEmoji(cat) {
 }
 
 async function addItem() {
-  const name = document.getElementById('new-item-name').value.trim();
+  const nameInput = document.getElementById('new-item-name');
+  const name = nameInput.value.trim();
   const qty  = parseInt(document.getElementById('new-item-qty').value) || 1;
   if (!name) return;
-  const category = activeCat !== 'Tous' ? activeCat : guessCategory(name);
+  let category = activeCat !== 'Tous' ? activeCat : (nameInput.dataset.category || guessCategory(name));
   const itemData = { list_id: currentListId, name, qty, category, checked: false };
   if (isOnline) {
     const { error } = await sb.from('items').insert(itemData);
@@ -1062,8 +1171,10 @@ async function addItem() {
     currentItems.push({ ...itemData, id: 'offline_' + Date.now() });
     offlineQueue.push({ type: 'insert', table: 'items', data: itemData });
   }
-  document.getElementById('new-item-name').value = '';
+  nameInput.value = '';
+  delete nameInput.dataset.category;
   document.getElementById('new-item-qty').value = 1;
+  document.getElementById('autocomplete-list').classList.remove('open');
   await loadItems();
 }
 
@@ -1115,8 +1226,134 @@ async function updateListCounts() {
 }
 
 // ══════════════════════════════════════════════════════
-//  CATEGORY GUESSER
+//  AUTOCOMPLETE
 // ══════════════════════════════════════════════════════
+let acHighlight = -1;
+function handleAutocomplete() {
+  const input = document.getElementById('new-item-name');
+  const list = document.getElementById('autocomplete-list');
+  const q = input.value.trim().toLowerCase();
+  acHighlight = -1;
+  if (!q) { list.classList.remove('open'); list.innerHTML = ''; return; }
+  const matches = PRODUCT_FLAT.filter(p => p.name.toLowerCase().includes(q)).slice(0, 8);
+  if (!matches.length) { list.classList.remove('open'); list.innerHTML = ''; return; }
+  list.innerHTML = matches.map(p => {
+    const color = CAT_COLORS[p.category] || '#9CA3AF';
+    return `<div class="autocomplete-item" onclick="selectAutocomplete('${p.name.replace(/'/g,"\\'")}','${p.category}')">
+      <span class="ac-cat-dot" style="background:${color}"></span>
+      <span>${p.name}</span>
+      <span class="ac-cat">${p.category}</span>
+    </div>`;
+  }).join('');
+  list.classList.add('open');
+}
+
+function selectAutocomplete(name, category) {
+  document.getElementById('new-item-name').value = name;
+  document.getElementById('new-item-name').dataset.category = category;
+  document.getElementById('autocomplete-list').classList.remove('open');
+  document.getElementById('autocomplete-list').innerHTML = '';
+}
+
+// Close autocomplete on outside click
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.add-item-input-wrap')) {
+    const list = document.getElementById('autocomplete-list');
+    if (list) { list.classList.remove('open'); }
+  }
+});
+
+// Keyboard navigation for autocomplete
+document.addEventListener('keydown', (e) => {
+  const list = document.getElementById('autocomplete-list');
+  if (!list || !list.classList.contains('open')) return;
+  const items = list.querySelectorAll('.autocomplete-item');
+  if (!items.length) return;
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    acHighlight = Math.min(acHighlight + 1, items.length - 1);
+    items.forEach((it,i) => it.classList.toggle('highlighted', i === acHighlight));
+    items[acHighlight].scrollIntoView({block:'nearest'});
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    acHighlight = Math.max(acHighlight - 1, 0);
+    items.forEach((it,i) => it.classList.toggle('highlighted', i === acHighlight));
+    items[acHighlight].scrollIntoView({block:'nearest'});
+  } else if (e.key === 'Enter' && acHighlight >= 0) {
+    e.preventDefault();
+    items[acHighlight].click();
+  } else if (e.key === 'Escape') {
+    list.classList.remove('open');
+  }
+});
+
+// ══════════════════════════════════════════════════════
+//  CATALOG BROWSER
+// ══════════════════════════════════════════════════════
+let catalogActiveCat = Object.keys(PRODUCT_CATALOG)[0];
+
+function openCatalog() {
+  document.getElementById('catalog-search').value = '';
+  buildCatalogCats();
+  catalogActiveCat = Object.keys(PRODUCT_CATALOG)[0];
+  renderCatalogProducts();
+  openModal('modal-catalog');
+}
+
+function buildCatalogCats() {
+  const el = document.getElementById('catalog-cats');
+  el.innerHTML = Object.keys(PRODUCT_CATALOG).map(cat => {
+    const color = CAT_COLORS[cat] || '#9CA3AF';
+    return `<button class="catalog-cat-btn ${cat === catalogActiveCat ? 'active' : ''}"
+      style="${cat === catalogActiveCat ? `background:${color}` : ''}"
+      onclick="setCatalogCat('${cat}')">${catEmoji(cat)} ${cat}</button>`;
+  }).join('');
+}
+
+function setCatalogCat(cat) {
+  catalogActiveCat = cat;
+  document.getElementById('catalog-search').value = '';
+  buildCatalogCats();
+  renderCatalogProducts();
+}
+
+function renderCatalogProducts() {
+  const q = document.getElementById('catalog-search').value.trim().toLowerCase();
+  const grid = document.getElementById('catalog-products');
+  let products;
+  if (q) {
+    products = PRODUCT_FLAT.filter(p => p.name.toLowerCase().includes(q));
+  } else {
+    products = PRODUCT_CATALOG[catalogActiveCat].map(name => ({ name, category: catalogActiveCat }));
+  }
+  if (!products.length) {
+    grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;color:var(--muted);padding:20px;font-size:13px">Aucun produit trouvé</div>`;
+    return;
+  }
+  grid.innerHTML = products.map(p => {
+    const alreadyIn = currentItems.some(i => i.name.toLowerCase() === p.name.toLowerCase() && !i.checked);
+    return `<button class="catalog-product-btn ${alreadyIn ? 'added' : ''}" onclick="quickAddFromCatalog('${p.name.replace(/'/g,"\\'")}','${p.category}', this)">
+      <span>${p.name}</span>
+      <span class="add-icon">${alreadyIn ? '✓' : '+'}</span>
+    </button>`;
+  }).join('');
+}
+
+async function quickAddFromCatalog(name, category, btnEl) {
+  const itemData = { list_id: currentListId, name, qty: 1, category, checked: false };
+  if (isOnline) {
+    const { error } = await sb.from('items').insert(itemData);
+    if (error) { toast('❌ ' + error.message); return; }
+    await updateListCounts();
+  } else {
+    currentItems.push({ ...itemData, id: 'offline_' + Date.now() });
+    offlineQueue.push({ type: 'insert', table: 'items', data: itemData });
+  }
+  await loadItems();
+  btnEl.classList.add('added');
+  btnEl.querySelector('.add-icon').textContent = '✓';
+  toast(`✅ ${name} ajouté`);
+}
 function guessCategory(name) {
   const n = name.toLowerCase();
   if (/pomme|poire|banane|orange|tomate|salade|carotte|courgette|citron|fruit|légume|radis|poireau|oignon|ail|persil|basilic/.test(n)) return 'Fruits & Légumes';
@@ -1283,7 +1520,15 @@ function toast(msg) {
 
 function toggleTheme() {
   document.body.classList.toggle('dark');
-  toast('🌙 Thème modifié');
+  const isDark = document.body.classList.contains('dark');
+  localStorage.setItem('freshlist-theme', isDark ? 'dark' : 'light');
+  document.querySelector('#app-screen .icon-btn').textContent = isDark ? '☀️' : '🌙';
+  toast(isDark ? '🌙 Mode sombre activé' : '☀️ Mode clair activé');
+}
+
+// Apply saved theme on load
+if (localStorage.getItem('freshlist-theme') === 'dark') {
+  document.body.classList.add('dark');
 }
 
 // ══════════════════════════════════════════════════════
