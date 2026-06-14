@@ -1540,6 +1540,17 @@ if (localStorage.getItem('freshlist-theme') === 'dark') {
 //  SESSION CHECK ON LOAD
 // ══════════════════════════════════════════════════════
 (async () => {
+  // Handle email confirmation redirect (#access_token=... in URL hash)
+  if (window.location.hash && window.location.hash.includes('access_token')) {
+    const { data, error } = await sb.auth.getSession();
+    if (data?.session?.user) {
+      currentUser = data.session.user;
+      window.location.hash = ''; // clean URL
+      await initApp();
+      toast('✅ Email confirmé, bienvenue !');
+      return;
+    }
+  }
   const { data: { session } } = await sb.auth.getSession();
   if (session?.user) {
     currentUser = session.user;
