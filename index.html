@@ -1415,20 +1415,22 @@ async function openScanner() {
       ZXing.BarcodeFormat.QR_CODE,
     ];
     hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, formats);
-    zxingReader = new ZXing.BrowserMultiFormatReader(hints);
+    const codeReader = new ZXing.BrowserMultiFormatReader(hints);
+    zxingReader = codeReader;
     const videoEl = document.getElementById('scanner-video');
-    const devices = await ZXing.BrowserCodeReader.listVideoInputDevices();
-    // Prefer back camera
-    const device = devices.find(d => /back|rear|environment/i.test(d.label)) || devices[devices.length - 1];
-    const deviceId = device?.deviceId;
-    zxingReader.decodeFromVideoDevice(deviceId, videoEl, async (result, err) => {
-      if (!scanActive) return;
-      if (result) {
-        scanActive = false;
-        await handleBarcode(result.getText());
-        closeScanner();
+    // v0.20 API: decodeFromConstraints directly with environment camera
+    await codeReader.decodeFromConstraints(
+      { video: { facingMode: 'environment' } },
+      videoEl,
+      async (result, err) => {
+        if (!scanActive) return;
+        if (result) {
+          scanActive = false;
+          await handleBarcode(result.getText());
+          closeScanner();
+        }
       }
-    });
+    );
   } catch(e) {
     toast('❌ Caméra inaccessible : ' + e.message);
     closeScanner();
