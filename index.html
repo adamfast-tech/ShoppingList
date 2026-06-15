@@ -7,6 +7,7 @@
 <link rel="manifest" href="manifest.json">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.20.0/umd/index.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="catalog.js"></script>
 <style>
@@ -1393,36 +1394,53 @@ async function inviteUser() {
 }
 
 // ══════════════════════════════════════════════════════
-//  SCANNER (Barcode)
+//  SCANNER (ZXing — compatible Safari iOS)
 // ══════════════════════════════════════════════════════
-let scanStream = null;
+let zxingReader = null;
+let scanActive = false;
+
 async function openScanner() {
   const overlay = document.getElementById('scanner-overlay');
   overlay.classList.add('open');
+  scanActive = true;
   try {
-    scanStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-    document.getElementById('scanner-video').srcObject = scanStream;
-    if ('BarcodeDetector' in window) {
-      const detector = new BarcodeDetector({ formats: ['ean_13','ean_8','upc_a','upc_e','code_128'] });
-      const video = document.getElementById('scanner-video');
-      const scanLoop = setInterval(async () => {
-        if (!overlay.classList.contains('open')) { clearInterval(scanLoop); return; }
-        try {
-          const codes = await detector.detect(video);
-          if (codes.length) {
-            clearInterval(scanLoop);
-            await handleBarcode(codes[0].rawValue);
-            closeScanner();
-          }
-        } catch {}
-      }, 400);
-    } else {
-      toast('📷 Scanner non supporté sur ce navigateur');
-      setTimeout(closeScanner, 2000);
-    }
+    const hints = new Map();
+    const formats = [
+      ZXing.BarcodeFormat.EAN_13,
+      ZXing.BarcodeFormat.EAN_8,
+      ZXing.BarcodeFormat.UPC_A,
+      ZXing.BarcodeFormat.UPC_E,
+      ZXing.BarcodeFormat.CODE_128,
+      ZXing.BarcodeFormat.CODE_39,
+      ZXing.BarcodeFormat.QR_CODE,
+    ];
+    hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, formats);
+    zxingReader = new ZXing.BrowserMultiFormatReader(hints);
+    const videoEl = document.getElementById('scanner-video');
+    const devices = await ZXing.BrowserCodeReader.listVideoInputDevices();
+    // Prefer back camera
+    const device = devices.find(d => /back|rear|environment/i.test(d.label)) || devices[devices.length - 1];
+    const deviceId = device?.deviceId;
+    zxingReader.decodeFromVideoDevice(deviceId, videoEl, async (result, err) => {
+      if (!scanActive) return;
+      if (result) {
+        scanActive = false;
+        await handleBarcode(result.getText());
+        closeScanner();
+      }
+    });
   } catch(e) {
-    toast('❌ Caméra inaccessible');
+    toast('❌ Caméra inaccessible : ' + e.message);
     closeScanner();
+  }
+}
+
+function closeScanner() {
+  scanActive = false;
+  document.getElementById('scanner-overlay').classList.remove('open');
+  if (zxingReader) {
+    zxingReader.reset();
+    zxingReader = null;
   }
 }
 
@@ -1434,17 +1452,15 @@ async function handleBarcode(code) {
     if (json.status === 1) {
       const name = json.product.product_name_fr || json.product.product_name || code;
       document.getElementById('new-item-name').value = name;
-      toast('✅ Produit trouvé : ' + name);
+      toast('✅ ' + name + ' trouvé !');
     } else {
       document.getElementById('new-item-name').value = 'Produit ' + code;
-      toast('⚠️ Produit inconnu — nom saisi manuellement');
+      toast('⚠️ Produit inconnu — modifie le nom si besoin');
     }
-  } catch { document.getElementById('new-item-name').value = code; }
-}
-
-function closeScanner() {
-  document.getElementById('scanner-overlay').classList.remove('open');
-  if (scanStream) { scanStream.getTracks().forEach(t => t.stop()); scanStream = null; }
+  } catch {
+    document.getElementById('new-item-name').value = code;
+    toast('⚠️ Impossible de récupérer le produit');
+  }
 }
 
 // ══════════════════════════════════════════════════════
