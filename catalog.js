@@ -1,5 +1,5 @@
 // ══════════════════════════════════════════════════════
-//  CATALOGUE PRODUITS — ~450 produits, 8 catégories
+//  CATALOGUE PRODUITS — ~570 produits, 8 rayons
 // ══════════════════════════════════════════════════════
 const PRODUCT_CATALOG = {
   "Fruits & Légumes": [
@@ -76,7 +76,7 @@ const PRODUCT_CATALOG = {
     "Tortillas","Wraps","Crêpes","Biscottes","Céréales corn flakes","Muesli","Granola",
     "Porridge flocons d'avoine","Biscuits sablés","Biscuits chocolat","Madeleines",
     "Spéculoos","Gâteau au chocolat","Pâte feuilletée","Pâte brisée","Pâte sablée",
-    "Levure de boulanger","Chocolat noir","Chocolat au lait","Chocolat blanc","Cacao en poudre",
+    "Chocolat noir","Chocolat au lait","Chocolat blanc","Cacao en poudre",
     "Pépites de chocolat","Amandes","Noix","Noisettes","Pistaches","Cacahuètes",
     "Noix de cajou","Graines de tournesol","Graines de chia","Graines de lin","Raisins secs",
     "Chips","Crackers","Popcorn","Tartare d'algues","Sushi (kit)","Nori","Vermicelles de riz",
