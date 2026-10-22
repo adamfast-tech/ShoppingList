@@ -19,7 +19,7 @@ Site statique (GitHub Pages) + [Supabase](https://supabase.com) pour les comptes
 ## Base de données
 
 Les scripts de `supabase/migrations/` s'appliquent dans l'ordre, via l'éditeur SQL de
-Supabase (ou `supabase db push`). Ils ne s'appliquent qu'une fois le site correspondant en ligne.
+Supabase (ou `supabase db push`). Les migrations déjà présentes sont appliquées.
 
 ## Mettre à jour une bibliothèque
 

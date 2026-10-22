@@ -1,13 +1,14 @@
 -- FreshList : partage sécurisé, collaborateurs visibles et temps réel.
+-- Appliquée sur Supabase le 22/10/2026.
 --
--- À appliquer une fois la nouvelle version du site en ligne : l'ancienne
--- version cherchait les comptes directement dans la table `profiles`,
--- ce que la suppression de la règle « Search by email » interdit.
+-- L'ancienne version du site cherchait les comptes directement dans la
+-- table `profiles`, ce que la neutralisation de « Search by email » interdit.
 
 -- ─── 1. Ne plus exposer les emails de tous les utilisateurs ───────────────
 -- La règle « Search by email » (using true) permettait à n'importe qui,
 -- même sans compte, de lire la liste complète des emails et des prénoms.
-drop policy if exists "Search by email" on public.profiles;
+-- Elle est neutralisée (ne donne plus accès à aucune ligne).
+alter policy "Search by email" on public.profiles to authenticated using (false);
 
 -- Recherche d'un compte par email, réservée aux utilisateurs connectés,
 -- qui ne renvoie que l'identifiant.
@@ -46,7 +47,6 @@ revoke all on function public.my_collaborators() from public, anon;
 grant execute on function public.my_collaborators() to authenticated;
 
 -- ─── 3. Un collaborateur peut quitter une liste partagée ──────────────────
-drop policy if exists collab_delete_self on public.list_collaborators;
 create policy collab_delete_self on public.list_collaborators
   for delete to authenticated
   using (user_id = (select auth.uid()));
@@ -55,6 +55,7 @@ create policy collab_delete_self on public.list_collaborators
 -- (déclenchée à l'inscription ; n'a pas à être appelable via l'API)
 alter function public.handle_new_user() set search_path = '';
 revoke all on function public.handle_new_user() from public, anon, authenticated;
+grant execute on function public.handle_new_user() to supabase_auth_admin;
 
 -- ─── 5. Index sur les clés étrangères (requêtes et règles RLS plus rapides) ─
 create index if not exists items_list_id_idx on public.items (list_id);
