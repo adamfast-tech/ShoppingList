@@ -949,6 +949,7 @@ const CATALOG = (typeof PRODUCT_FLAT !== 'undefined' ? PRODUCT_FLAT : []).map(p 
 const CATALOG_EXACT = new Map();
 const CATALOG_FIRST = new Map();
 const CATALOG_ANY = new Map();
+const CATALOG_BY_NAME = new Map(CATALOG.map(p => [p.n, p]));
 for (const p of CATALOG) {
   if (!CATALOG_EXACT.has(p.n)) CATALOG_EXACT.set(p.n, p.category);
   const words = wordsOf(p.name);
@@ -1019,11 +1020,15 @@ function updateAutocomplete() {
   const list = $('autocomplete-list');
   if (!acItems.length) { closeAutocomplete(); return; }
   const current = new Set(itemsOf(state.currentListId).filter(i => !i.checked).map(i => norm(i.name)));
-  list.innerHTML = acItems.map((p, i) => `<li role="option" id="ac-${i}" class="autocomplete-item" aria-selected="false" data-action="ac-pick" data-index="${i}">
+  list.innerHTML = acItems.map((p, i) => {
+    const ref = CATALOG_BY_NAME.get(p.n);
+    const where = ref && ref.category === p.category ? `${ref.subEmoji} ${ref.sub}` : p.category;
+    return `<li role="option" id="ac-${i}" class="autocomplete-item" aria-selected="false" data-action="ac-pick" data-index="${i}">
       <span class="ac-cat-dot" style="background:${catOf(p.category).color}"></span>
       <span class="ac-name">${highlight(p.name, input.value)}</span>
-      ${current.has(p.n) ? '<span class="ac-in">✓ déjà dans la liste</span>' : `<span class="ac-cat">${esc(p.category)}</span>`}
-    </li>`).join('');
+      ${current.has(p.n) ? '<span class="ac-in">✓ déjà dans la liste</span>' : `<span class="ac-cat">${esc(where)}</span>`}
+    </li>`;
+  }).join('');
   list.hidden = false;
   input.setAttribute('aria-expanded', 'true');
   input.removeAttribute('aria-activedescendant');
@@ -1068,46 +1073,174 @@ function handleAddKeydown(e) {
 }
 
 // ══════════════════════════════════════════════════════
-//  CATALOGUE
+//  CATALOGUE : rayon → sous-rayon → produits
 // ══════════════════════════════════════════════════════
-let catalogCat = CATEGORIES[0].name;
+const catalogPos = { cat: null, sub: null };   // null = accueil du catalogue
+const subsOf = cat => (typeof PRODUCT_CATALOG !== 'undefined' && PRODUCT_CATALOG[cat]) || [];
+const findSub = (cat, sub) => subsOf(cat).find(s => s.sub === sub) || null;
 
 function openCatalog() {
   if (typeof PRODUCT_CATALOG === 'undefined') { toast('❌ Catalogue indisponible, recharge la page'); return; }
-  $('catalog-search').value = '';
-  catalogCat = state.activeCat !== 'Tous' && PRODUCT_CATALOG[state.activeCat] ? state.activeCat : Object.keys(PRODUCT_CATALOG)[0];
-  renderCatalog();
+  closeAutocomplete();
+  // Liste filtrée sur un rayon : on ouvre directement ses sous-rayons
+  const cat = state.activeCat !== 'Tous' && PRODUCT_CATALOG[state.activeCat] ? state.activeCat : null;
+  catalogGo(cat, null, { focus: false });
   openDialog('dlg-catalog');
-  $('catalog-products').scrollTop = 0;
+}
+
+function catalogGo(cat = null, sub = null, { focus = true } = {}) {
+  catalogPos.cat = cat && PRODUCT_CATALOG[cat] ? cat : null;
+  catalogPos.sub = catalogPos.cat && findSub(catalogPos.cat, sub) ? sub : null;
+  $('catalog-search').value = '';
+  renderCatalog();
+  $('catalog-body').scrollTop = 0;
+  // Sous-rayon actif visible dans la barre de raccourcis
+  const chips = $('catalog-subchips');
+  const active = chips.querySelector('[aria-pressed="true"]');
+  if (!chips.hidden && active) chips.scrollLeft = active.offsetLeft - (chips.clientWidth - active.offsetWidth) / 2;
+  if (focus) $('dlg-catalog-title').focus({ preventScroll: true });
+}
+
+function catalogBack() {
+  if ($('catalog-search').value.trim()) catalogGo(catalogPos.cat, catalogPos.sub);
+  else if (catalogPos.sub) catalogGo(catalogPos.cat);
+  else catalogGo(null);
+}
+
+// Quantités déjà dans la liste courante (articles non cochés)
+function catalogListState() {
+  const qty = new Map();
+  const perCat = {};
+  const perSub = {};
+  for (const i of itemsOf(state.currentListId)) {
+    if (i.checked) continue;
+    const n = norm(i.name);
+    qty.set(n, i.qty || 1);
+    const cat = catOf(i.category).name;
+    perCat[cat] = (perCat[cat] || 0) + 1;
+    const p = CATALOG_BY_NAME.get(n);
+    if (p && p.category === cat) perSub[cat + '|' + p.sub] = (perSub[cat + '|' + p.sub] || 0) + 1;
+  }
+  return { qty, perCat, perSub };
+}
+
+function catalogTileHTML({ attrs, emoji, name, meta, count, color }) {
+  return `<button type="button" class="catalog-tile" data-action="catalog-go" ${attrs} style="--chip:${color}">
+    <span class="tile-emoji" aria-hidden="true">${emoji}</span>
+    <span class="tile-name">${esc(name)}</span>
+    <span class="tile-meta">${meta}</span>
+    ${count ? `<span class="tile-badge"><span aria-hidden="true">✓ ${count}</span><span class="sr-only">, ${plural(count, 'article')} déjà dans la liste</span></span>` : ''}
+  </button>`;
+}
+
+function catalogProductHTML(p, qtyMap) {
+  const qty = qtyMap.get(norm(p.name));
+  return `<button type="button" class="catalog-product-btn${qty ? ' added' : ''}" data-action="catalog-add" data-name="${esc(p.name)}" data-cat="${esc(p.category)}">
+    <span>${esc(p.name)}</span>
+    <span class="add-icon" aria-label="${qty ? `déjà dans la liste, quantité ${qty}` : 'ajouter'}">${qty ? `✓${qty > 1 ? ' ×' + qty : ''}` : '+'}</span>
+  </button>`;
+}
+
+// Produits dont le nom contient tous les mots tapés + sous-rayons dont un mot commence par la recherche
+function catalogSearch(q) {
+  const words = q.split(/\s+/).filter(Boolean);
+  const products = CATALOG.filter(p => words.every(w => p.n.includes(w)));
+  const subs = [];
+  for (const cat of Object.keys(PRODUCT_CATALOG)) {
+    for (const s of subsOf(cat)) {
+      const subWords = norm(s.sub).split(/[^a-z0-9]+/);
+      if (words.every(w => subWords.some(sw => sw.startsWith(w)))) subs.push({ cat, s });
+    }
+  }
+  return { products, subs };
 }
 
 function renderCatalog() {
-  const q = norm($('catalog-search').value);
-  $('catalog-cats').innerHTML = Object.keys(PRODUCT_CATALOG).map(cat => {
-    const c = catOf(cat);
-    return `<button type="button" class="catalog-cat-btn" data-action="catalog-cat" data-cat="${esc(cat)}" aria-pressed="${!q && cat === catalogCat}" style="--chip:${c.color}">${c.emoji} ${esc(cat)}</button>`;
-  }).join('');
+  const raw = $('catalog-search').value.trim();
+  const q = norm(raw);
+  const { cat, sub } = catalogPos;
+  const c = cat ? catOf(cat) : null;
+  const s = sub ? findSub(cat, sub) : null;
+  const { qty, perCat, perSub } = catalogListState();
+  const body = $('catalog-body');
+  const scroll = body.scrollTop;
 
-  const products = q
-    ? CATALOG.filter(p => p.n.includes(q))
-    : PRODUCT_CATALOG[catalogCat].map(name => ({ name, category: catalogCat }));
-  const grid = $('catalog-products');
-  const scroll = grid.scrollTop;
-  if (!products.length) {
-    const typed = $('catalog-search').value.trim();
-    grid.innerHTML = `<div class="catalog-empty">Aucun produit trouvé
-      <br><button type="button" class="btn-secondary" data-action="catalog-add-custom">+ Ajouter « ${esc(typed)} »</button></div>`;
-    return;
+  // En-tête : titre, retour, fil d'Ariane
+  $('dlg-catalog-title').textContent = q ? 'Recherche 🔎' : s ? `${s.emoji} ${s.sub}` : c ? `${c.emoji} ${cat}` : 'Catalogue 🗂️';
+  $('catalog-back').hidden = !q && !c;
+  $('catalog-back').setAttribute('aria-label', q ? 'Effacer la recherche' : s ? `Retour à ${cat}` : 'Retour aux rayons');
+  const crumbs = $('catalog-crumbs');
+  crumbs.hidden = !!q || !c;
+  if (!crumbs.hidden) {
+    crumbs.innerHTML = `<button type="button" data-action="catalog-go">Catalogue</button>` +
+      (s ? `<span aria-hidden="true">›</span><button type="button" data-action="catalog-go" data-cat="${esc(cat)}">${esc(cat)}</button>` : '');
   }
-  const inList = new Map(itemsOf(state.currentListId).filter(i => !i.checked).map(i => [norm(i.name), i.qty || 1]));
-  grid.innerHTML = products.map(p => {
-    const qty = inList.get(norm(p.name));
-    return `<button type="button" class="catalog-product-btn${qty ? ' added' : ''}" data-action="catalog-add" data-name="${esc(p.name)}" data-cat="${esc(p.category)}">
-      <span>${esc(p.name)}</span>
-      <span class="add-icon" aria-label="${qty ? `déjà dans la liste, quantité ${qty}` : 'ajouter'}">${qty ? `✓${qty > 1 ? ' ×' + qty : ''}` : '+'}</span>
-    </button>`;
-  }).join('');
-  grid.scrollTop = scroll;
+
+  // Raccourcis vers les autres sous-rayons du même rayon
+  const chips = $('catalog-subchips');
+  chips.hidden = !!q || !s;
+  if (!chips.hidden) {
+    chips.innerHTML = subsOf(cat).map(x => {
+      const n = perSub[cat + '|' + x.sub];
+      return `<button type="button" class="catalog-subchip" data-action="catalog-go" data-cat="${esc(cat)}" data-sub="${esc(x.sub)}" aria-pressed="${x.sub === sub}" style="--chip:${c.color}">${x.emoji} ${esc(x.sub)}${n ? ` <span class="count">${n}</span>` : ''}</button>`;
+    }).join('');
+  }
+
+  let html;
+  if (q) {
+    // Recherche dans tout le catalogue, résultats rangés par sous-rayon
+    const { products: found, subs: foundSubs } = catalogSearch(q);
+    html = '';
+    if (foundSubs.length) {
+      html += `<h3 class="catalog-group-title plain">Sous-rayons</h3>
+        <div class="catalog-tiles compact">${foundSubs.map(({ cat: fc, s: fs }) => catalogTileHTML({
+          attrs: `data-cat="${esc(fc)}" data-sub="${esc(fs.sub)}"`,
+          emoji: fs.emoji, name: fs.sub, meta: `${catOf(fc).emoji} ${esc(fc)}`,
+          count: perSub[fc + '|' + fs.sub], color: catOf(fc).color,
+        })).join('')}</div>`;
+    }
+    if (!found.length) {
+      html += `<div class="catalog-empty">Aucun produit nommé « ${esc(raw)} »
+        <br><button type="button" class="btn-secondary" data-action="catalog-add-custom">+ Ajouter « ${esc(raw)} »</button></div>`;
+    } else {
+      const groups = new Map();
+      for (const p of found) {
+        const key = p.category + '|' + p.sub;
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(p);
+      }
+      html += [...groups.values()].map(list => {
+        const p0 = list[0];
+        return `<h3 class="catalog-group-title" style="--chip:${catOf(p0.category).color}">
+            <button type="button" data-action="catalog-go" data-cat="${esc(p0.category)}" data-sub="${esc(p0.sub)}">${p0.subEmoji} ${esc(p0.sub)} <span class="in-cat">· ${esc(p0.category)}</span></button>
+          </h3>
+          <div class="catalog-products-grid">${list.map(p => catalogProductHTML(p, qty)).join('')}</div>`;
+      }).join('');
+    }
+  } else if (s) {
+    // Niveau 3 : les produits du sous-rayon
+    html = `<div class="catalog-products-grid">${s.items.map(name => catalogProductHTML({ name, category: cat }, qty)).join('')}</div>`;
+  } else if (c) {
+    // Niveau 2 : les sous-rayons
+    html = `<div class="catalog-tiles">${subsOf(cat).map(x => catalogTileHTML({
+      attrs: `data-cat="${esc(cat)}" data-sub="${esc(x.sub)}"`,
+      emoji: x.emoji, name: x.sub, meta: plural(x.items.length, 'produit'),
+      count: perSub[cat + '|' + x.sub], color: c.color,
+    })).join('')}</div>`;
+  } else {
+    // Niveau 1 : les rayons
+    html = `<div class="catalog-tiles">${Object.keys(PRODUCT_CATALOG).map(name => {
+      const cc = catOf(name);
+      const subs = subsOf(name);
+      return catalogTileHTML({
+        attrs: `data-cat="${esc(name)}"`,
+        emoji: cc.emoji, name, meta: `${subs.length} sous-rayons`,
+        count: perCat[name], color: cc.color,
+      });
+    }).join('')}</div>`;
+  }
+  body.innerHTML = html;
+  body.scrollTop = scroll;
 }
 
 // ══════════════════════════════════════════════════════
@@ -1512,7 +1645,8 @@ const actions = {
   'clear-checked': clearChecked,
   'ac-pick': el => pickSuggestion(Number(el.dataset.index)),
   'open-catalog': openCatalog,
-  'catalog-cat': el => { catalogCat = el.dataset.cat; $('catalog-search').value = ''; renderCatalog(); $('catalog-products').scrollTop = 0; },
+  'catalog-go': el => catalogGo(el.dataset.cat || null, el.dataset.sub || null),
+  'catalog-back': () => catalogBack(),
   'catalog-add': el => addItemByName(el.dataset.name, 1, el.dataset.cat),
   'catalog-add-custom': () => { if (addItemByName($('catalog-search').value, 1)) { $('catalog-search').value = ''; renderCatalog(); } },
   'open-scanner': openScanner,
@@ -1554,7 +1688,11 @@ function bindEvents() {
   $('add-item-form').addEventListener('submit', handleAddSubmit);
   $('new-item-name').addEventListener('input', updateAutocomplete);
   $('new-item-name').addEventListener('keydown', handleAddKeydown);
-  $('catalog-search').addEventListener('input', renderCatalog);
+  $('catalog-search').addEventListener('input', () => { renderCatalog(); $('catalog-body').scrollTop = 0; });
+  // Échap / geste retour : remonter d'un niveau avant de fermer le catalogue
+  $('dlg-catalog').addEventListener('cancel', e => {
+    if (catalogPos.cat || $('catalog-search').value.trim()) { e.preventDefault(); catalogBack(); }
+  });
   $('wakelock-toggle').addEventListener('change', e => {
     store.set('fl:wakelock', e.target.checked);
     updateWakeLock();

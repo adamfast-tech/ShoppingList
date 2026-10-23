@@ -292,11 +292,17 @@
 
 <!-- Catalogue -->
 <dialog class="modal modal-wide" id="dlg-catalog" aria-labelledby="dlg-catalog-title">
-  <div class="modal-card">
-    <h2 class="modal-title" id="dlg-catalog-title" tabindex="-1" autofocus>Catalogue 🗂️</h2>
-    <input type="search" class="input catalog-search" id="catalog-search" placeholder="Rechercher un produit…" aria-label="Rechercher un produit" autocomplete="off">
-    <div class="catalog-cats" id="catalog-cats" role="toolbar" aria-label="Rayons"></div>
-    <div class="catalog-products-grid" id="catalog-products"></div>
+  <div class="modal-card catalog-card">
+    <div class="catalog-head">
+      <button type="button" class="catalog-back" id="catalog-back" data-action="catalog-back" aria-label="Retour" hidden>←</button>
+      <div class="catalog-head-text">
+        <nav class="catalog-crumbs" id="catalog-crumbs" aria-label="Fil d'Ariane" hidden></nav>
+        <h2 class="modal-title" id="dlg-catalog-title" tabindex="-1" autofocus>Catalogue 🗂️</h2>
+      </div>
+    </div>
+    <input type="search" class="input catalog-search" id="catalog-search" placeholder="Rechercher dans tout le catalogue…" aria-label="Rechercher un produit" autocomplete="off" enterkeyhint="search">
+    <div class="catalog-subchips" id="catalog-subchips" role="toolbar" aria-label="Autres sous-rayons" hidden></div>
+    <div class="catalog-body" id="catalog-body"></div>
     <div class="modal-actions">
       <button type="button" class="btn-cancel" data-action="close-modal">Fermer</button>
     </div>

@@ -1,7 +1,7 @@
 // Service worker FreshList : rend l'application disponible hors-ligne.
 // Les fichiers du site sont toujours pris sur le réseau en priorité (mises à jour immédiates),
 // la copie en cache ne sert que si le réseau ne répond pas.
-const VERSION = 'freshlist-v2';
+const VERSION = 'freshlist-v3';
 const APP_SHELL = [
   './',
   'index.html',

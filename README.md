@@ -11,7 +11,7 @@ Site statique (GitHub Pages) + [Supabase](https://supabase.com) pour les comptes
 | `styles.css` | Apparence (thèmes clair et sombre) |
 | `theme.js` | Applique le thème avant l'affichage |
 | `app.js` | Logique : connexion, listes, synchro hors-ligne, partage, scanner |
-| `catalog.js` | Catalogue de produits par rayon |
+| `catalog.js` | Catalogue de produits : rayons → sous-rayons → produits |
 | `sw.js` | Service worker : fonctionnement hors-ligne |
 | `manifest.json`, `icons/` | Installation sur l'écran d'accueil |
 | `supabase/migrations/` | Évolutions de la base de données |
