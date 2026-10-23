@@ -1,7 +1,7 @@
 // Service worker FreshList : rend l'application disponible hors-ligne.
 // Les fichiers du site sont toujours pris sur le réseau en priorité (mises à jour immédiates),
 // la copie en cache ne sert que si le réseau ne répond pas.
-const VERSION = 'freshlist-v5';
+const VERSION = 'freshlist-v6';
 const APP_SHELL = [
   './',
   'index.html',
@@ -49,7 +49,8 @@ self.addEventListener('fetch', event => {
 async function networkFirst(req) {
   const cache = await caches.open(VERSION);
   try {
-    const res = await withTimeout(fetch(req), 4000);
+    // no-cache : revalide auprès du serveur, pour que chaque mise en ligne soit prise immédiatement
+    const res = await withTimeout(fetch(req, { cache: 'no-cache' }), 4000);
     if (res.ok) cache.put(req, res.clone());
     return res;
   } catch {

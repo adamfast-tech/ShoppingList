@@ -49,9 +49,14 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html {
   -webkit-text-size-adjust: 100%; text-size-adjust: 100%;
-  touch-action: manipulation; /* pas de zoom au double appui ; le pincement est géré dans theme.js */
+  overscroll-behavior: none;
 }
-body, button, [role="button"], a, label { touch-action: manipulation; }
+/* Comme une appli : ni pincement ni double appui pour zoomer, sur TOUS les éléments
+   (les zones qui défilent ne tiennent pas compte de la règle posée sur <html>) */
+*, *::before, *::after { touch-action: pan-x pan-y !important; }
+/* Pas de sélection de texte ni de menu « appui long » sur l'interface, sauf dans les champs */
+body { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; overscroll-behavior: none; }
+input, textarea, select, [contenteditable] { -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; }
 body {
   font-family: 'Space Grotesk', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   background: var(--bg);
@@ -64,7 +69,7 @@ body {
 }
 body:has(dialog[open]), body.no-scroll { overflow: hidden; }
 button, input, select { font: inherit; color: inherit; }
-button { background: none; border: none; cursor: pointer; touch-action: manipulation; }
+button { background: none; border: none; cursor: pointer; }
 button:disabled { cursor: not-allowed; opacity: .6; }
 ul { list-style: none; }
 [hidden] { display: none !important; }
